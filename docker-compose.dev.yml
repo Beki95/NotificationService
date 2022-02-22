@@ -1,0 +1,65 @@
+version: "3.8"
+
+services:
+  postgres_db:
+    restart: always
+    image: postgres:12
+    container_name: postgres_db
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=dbCXeDTR5vFhZ
+      - POSTGRES_DB=test
+      - POSTGRES_USER=admin
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web: &web
+    build: .
+    volumes:
+      - ./media:/app/media/
+      - ./static:/app/static/
+      - ./:/app/
+    depends_on:
+      - postgres_db
+      - redis
+    environment:
+      - URL=https://probe.fbrq.cloud/v1/send/1
+      - TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NzY3MTk5OTIsImlzcyI6ImZhYnJpcXVlIiwibmFtZSI6ImltYW51aWxiZWtpIn0.0HOOoUMeCFzkxZkaFnz7_q_kuY4XY1Hm6ckJeIi3zb4
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=django-insecure-encpt_u7qcw9ox6#s@az^l2iq=x0(tcbksbj#2u4bn8edjo$uj
+      - DEBUG=True
+      - POSTGRES_PASSWORD=dbCXeDTR5vFhZ
+      - POSTGRES_DB=test
+      - POSTGRES_USER=admin
+    command: sh -c "./manage.py collectstatic --no-input &&
+                    ./manage.py migrate &&
+                    ./manage.py runserver 0.0.0.0:8000"
+
+  nginx:
+    image: nginx:latest
+    volumes:
+      - ./Docker/nginx/nginx.conf/:/etc/nginx/conf.d/default.conf/
+      - ./media:/app/media/
+      - ./static:/app/static/
+    container_name: nginx
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+
+  redis:
+    restart: always
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  django_worker:
+    <<: *web
+    container_name: django_worker
+    command: ["python", "manage.py", "qcluster"]
+
+
+volumes:
+  postgres_data:
